@@ -8,24 +8,25 @@ import torch.nn.functional as F
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Deteksi Inkonsistensi Review",
-    page_icon="🔍",
+    page_icon="🔎",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ── Navigasi ──────────────────────────────────────────────────
-st.sidebar.title("🔍 Inkonsistensi Review\nAplikasi Mobile")
+st.sidebar.title("Inkonsistensi Review\nAplikasi Mobile")
 st.sidebar.markdown("---")
 PAGE = st.sidebar.radio("Navigasi", [
-    "📊 Dashboard Dataset",
-    "🔎 Eksplorasi Data",
-    "⚙️ Skenario 1: Encoding Rating",
-    "🏆 Skenario 2: Perbandingan Model",
-    "📏 Skenario 3: Panjang Teks",
-    "🤖 Demo Prediksi",
+    "Dashboard Dataset",
+    "Eksplorasi Data",
+    "Skenario 1: Encoding Rating",
+    "Skenario 2: Perbandingan Model",
+    "Skenario 3: Panjang Teks",
+    "Demo Prediksi",
 ])
 st.sidebar.markdown("---")
 st.sidebar.caption("FP Text Mining — ITS 2025/2026")
@@ -277,11 +278,92 @@ def loss_acc_chart(history, epochs, title=""):
 def report_df(report_dict):
     return pd.DataFrame(report_dict).T.reset_index().rename(columns={"index": "Kelas"})
 
+# ── Logic Flow Visualizer ─────────────────────────────────────
+def render_logic_flow(text, rating, pred, probs, model_name="Model"):
+    confidence = probs[pred] * 100
+    text_preview = (text[:24] + "…") if len(text) > 24 else text
+    stars = "★" * rating + "☆" * (5 - rating)
+
+    out_label  = "1 — Inkonsisten" if pred == 1 else "0 — Konsisten"
+    out_color  = "#e05c5c" if pred == 1 else "#3dba7e"
+    out_bg     = "#1c0e0e" if pred == 1 else "#0e1c14"
+    result_tag = "Inkonsisten" if pred == 1 else "Konsisten"
+
+    anim_key = model_name.replace(" ", "").replace("+", "")
+    html = f"""
+    <style>
+      @keyframes pulse_{anim_key} {{
+        0%,100% {{ border-color: {out_color}99; }}
+        50%      {{ border-color: {out_color}; }}
+      }}
+    </style>
+    <div style="background:#0d1117;border-radius:12px;padding:18px 16px;
+                font-family:'Segoe UI',system-ui,sans-serif;border:1px solid #21262d;">
+
+      <div style="display:flex;align-items:center;justify-content:center;
+                  gap:10px;overflow-x:auto;">
+
+        <!-- INPUT -->
+        <div style="background:#161b22;border:1.5px solid #388bfd;border-radius:10px;
+                    padding:12px 14px;min-width:130px;max-width:150px;
+                    text-align:center;flex-shrink:0;">
+          <div style="color:#484f58;font-size:9px;font-weight:600;letter-spacing:1.5px;
+                      text-transform:uppercase;margin-bottom:6px;">Input</div>
+          <div style="color:#c9d1d9;font-size:11px;line-height:1.5;
+                      margin-bottom:6px;word-break:break-word;">"{text_preview}"</div>
+          <div style="color:#e3b341;font-size:13px;">{stars} ({rating}★)</div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="color:#30363d;font-size:22px;flex-shrink:0;">&#8594;</div>
+
+        <!-- MODEL -->
+        <div style="background:#1a1630;border:1.5px solid #7c5cbf;border-radius:10px;
+                    padding:12px 14px;min-width:140px;text-align:center;flex-shrink:0;">
+          <div style="color:#484f58;font-size:9px;font-weight:600;letter-spacing:1.5px;
+                      text-transform:uppercase;margin-bottom:6px;">Model</div>
+          <div style="color:#b99fec;font-size:13px;font-weight:600;
+                      margin-bottom:5px;">{model_name}</div>
+          <div style="color:#484f58;font-size:10px;line-height:1.5;">
+            Klasifikasi langsung<br>teks + rating &#8594; label
+          </div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="color:#30363d;font-size:22px;flex-shrink:0;">&#8594;</div>
+
+        <!-- OUTPUT -->
+        <div style="background:{out_bg};border:1.5px solid {out_color};border-radius:10px;
+                    padding:12px 14px;min-width:130px;text-align:center;flex-shrink:0;
+                    animation:pulse_{anim_key} 2s ease-in-out infinite;">
+          <div style="color:#484f58;font-size:9px;font-weight:600;letter-spacing:1.5px;
+                      text-transform:uppercase;margin-bottom:6px;">Output</div>
+          <div style="color:{out_color};font-size:15px;font-weight:700;
+                      margin-bottom:4px;">{out_label}</div>
+          <div style="background:#21262d;border-radius:3px;height:3px;
+                      overflow:hidden;margin:8px 0 5px;">
+            <div style="background:{out_color};height:100%;
+                        width:{confidence:.0f}%;border-radius:3px;"></div>
+          </div>
+          <div style="color:#484f58;font-size:10px;">konfiden {confidence:.1f}%</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #21262d;
+                  color:#484f58;font-size:10px;text-align:center;line-height:1.6;">
+        Model memprediksi label konsistensi secara langsung dari teks + rating &mdash;
+        bukan melalui deteksi sentimen terpisah.
+      </div>
+    </div>
+    """
+    components.html(html, height=220)
+
+
 # ══════════════════════════════════════════════════════════════
 # PAGE 1: Dashboard Dataset
 # ══════════════════════════════════════════════════════════════
-if PAGE == "📊 Dashboard Dataset":
-    st.title("📊 Dashboard Dataset")
+if PAGE == "Dashboard Dataset":
+    st.title("Dashboard Dataset")
     st.markdown("Review aplikasi mobile Indonesia dari Google Play Store — 5 aplikasi, scraping Juni 2026.")
 
     df = load_data()
@@ -356,8 +438,8 @@ if PAGE == "📊 Dashboard Dataset":
 # ══════════════════════════════════════════════════════════════
 # PAGE 2: Eksplorasi Data
 # ══════════════════════════════════════════════════════════════
-elif PAGE == "🔎 Eksplorasi Data":
-    st.title("🔎 Eksplorasi Data")
+elif PAGE == "Eksplorasi Data":
+    st.title("Eksplorasi Data")
 
     df = load_data()
     if df is None:
@@ -398,7 +480,7 @@ elif PAGE == "🔎 Eksplorasi Data":
         height=460, use_container_width=True,
     )
     st.download_button(
-        "⬇ Download CSV (hasil filter)",
+        "Download CSV (hasil filter)",
         fdf.to_csv(index=False).encode("utf-8-sig"),
         "filtered_reviews.csv", "text/csv",
     )
@@ -406,8 +488,8 @@ elif PAGE == "🔎 Eksplorasi Data":
 # ══════════════════════════════════════════════════════════════
 # PAGE 3: Skenario 1
 # ══════════════════════════════════════════════════════════════
-elif PAGE == "⚙️ Skenario 1: Encoding Rating":
-    st.title("⚙️ Skenario 1: Encoding Rating ke IndoBERT")
+elif PAGE == "Skenario 1: Encoding Rating":
+    st.title("Skenario 1: Encoding Rating ke IndoBERT")
 
     st.markdown("""
     **Pertanyaan:** Dari tiga cara mengintegrasikan informasi rating ke dalam IndoBERT, mana yang paling efektif?
@@ -448,7 +530,7 @@ elif PAGE == "⚙️ Skenario 1: Encoding Rating":
 
     st.markdown("---")
     st.subheader("Detail per Variant")
-    tabs = st.tabs(["Variant A", "Variant B", "Variant C ⭐"])
+    tabs = st.tabs(["Variant A", "Variant B", "Variant C (terbaik)"])
     for tab, v in zip(tabs, ["A", "B", "C"]):
         with tab:
             col1, col2 = st.columns(2)
@@ -466,8 +548,8 @@ elif PAGE == "⚙️ Skenario 1: Encoding Rating":
 # ══════════════════════════════════════════════════════════════
 # PAGE 4: Skenario 2
 # ══════════════════════════════════════════════════════════════
-elif PAGE == "🏆 Skenario 2: Perbandingan Model":
-    st.title("🏆 Skenario 2: Perbandingan Arsitektur Model")
+elif PAGE == "Skenario 2: Perbandingan Model":
+    st.title("Skenario 2: Perbandingan Arsitektur Model")
 
     st.markdown("""
     **Pertanyaan:** Seberapa besar gap performa antara model pretrained, DL non-pretrained, dan baseline klasik?
@@ -538,14 +620,14 @@ elif PAGE == "🏆 Skenario 2: Perbandingan Model":
     st.markdown("---")
     st.subheader("Classification Report per Model")
     for k in keys:
-        with st.expander(f"📋 {S2[k]['name']} — Acc={S2[k]['acc']:.4f} | F1 Macro={S2[k]['f1_m']:.4f}"):
+        with st.expander(f"{S2[k]['name']} — Acc={S2[k]['acc']:.4f} | F1 Macro={S2[k]['f1_m']:.4f}"):
             st.dataframe(report_df(S2[k]["report"]), hide_index=True, use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════
 # PAGE 5: Skenario 3
 # ══════════════════════════════════════════════════════════════
-elif PAGE == "📏 Skenario 3: Panjang Teks":
-    st.title("📏 Skenario 3: Pengaruh Panjang Teks")
+elif PAGE == "Skenario 3: Panjang Teks":
+    st.title("Skenario 3: Pengaruh Panjang Teks")
 
     st.markdown("""
     **Pertanyaan:** Di segmen panjang teks mana IndoBERT Variant C paling dan paling tidak akurat?
@@ -612,9 +694,8 @@ elif PAGE == "📏 Skenario 3: Panjang Teks":
 
     st.markdown("---")
     st.subheader("Classification Report & Analisis Error per Segmen")
-    icons = {"Pendek": "🔵", "Sedang": "🟢", "Panjang": "🔴"}
     for s in segs:
-        with st.expander(f"{icons[s]} Segmen {s} — n={S3[s]['n']:,} | FN={S3[s]['fn']} | FP={S3[s]['fp']}"):
+        with st.expander(f"Segmen {s} — n={S3[s]['n']:,} | FN={S3[s]['fn']} | FP={S3[s]['fp']}"):
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown("**Classification Report:**")
@@ -633,8 +714,8 @@ elif PAGE == "📏 Skenario 3: Panjang Teks":
 # ══════════════════════════════════════════════════════════════
 # PAGE 6: Demo Prediksi
 # ══════════════════════════════════════════════════════════════
-elif PAGE == "🤖 Demo Prediksi":
-    st.title("🤖 Demo Prediksi Inkonsistensi")
+elif PAGE == "Demo Prediksi":
+    st.title("Demo Prediksi Inkonsistensi")
     st.markdown("Masukkan teks review dan rating untuk mendeteksi inkonsistensi antara sentimen teks dan bintang yang diberikan.")
 
     col_in, col_out = st.columns([1, 1])
@@ -653,7 +734,7 @@ elif PAGE == "🤖 Demo Prediksi":
         use_lr   = st.checkbox("TF-IDF + Logistic Regression", value=True)
         use_cnn  = st.checkbox("TextCNN", value=True)
 
-        predict_btn = st.button("🔍 Prediksi", type="primary", use_container_width=True)
+        predict_btn = st.button("Prediksi", type="primary", use_container_width=True)
 
     with col_out:
         st.subheader("Hasil Prediksi")
@@ -668,13 +749,15 @@ elif PAGE == "🤖 Demo Prediksi":
                         st.info("**IndoBERT S3** — model belum tersedia. Jalankan `skenario3_text_length.ipynb` terlebih dahulu.")
                     else:
                         pred, probs = predict_bert(text_input, rating_input, bert_model, tokenizer)
-                        label = "❌ INKONSISTEN" if pred == 1 else "✅ KONSISTEN"
+                        label = "INKONSISTEN" if pred == 1 else "KONSISTEN"
                         fn = st.error if pred == 1 else st.success
                         fn(f"**IndoBERT S3:** {label}  \nKonfiden: {probs[pred]*100:.1f}%")
                         c1, c2 = st.columns(2)
                         c1.metric("P(Konsisten)",   f"{probs[0]*100:.1f}%")
                         c2.metric("P(Inkonsisten)", f"{probs[1]*100:.1f}%")
                         st.progress(float(probs[1]), text=f"Prob. Inkonsisten: {probs[1]*100:.1f}%")
+                        with st.expander("Logic Flow — cara model memutuskan"):
+                            render_logic_flow(text_input, rating_input, pred, probs, "IndoBERT S3")
                         st.markdown("---")
 
                 if use_lr:
@@ -683,13 +766,15 @@ elif PAGE == "🤖 Demo Prediksi":
                         st.info("**TF-IDF + LR** — model belum tersedia. Jalankan `skenario2_model_comparison.ipynb` terlebih dahulu.")
                     else:
                         pred, probs = predict_lr(text_input, rating_input, tfidf_m, lr_m)
-                        label = "❌ INKONSISTEN" if pred == 1 else "✅ KONSISTEN"
+                        label = "INKONSISTEN" if pred == 1 else "KONSISTEN"
                         fn = st.error if pred == 1 else st.success
                         fn(f"**TF-IDF + LR:** {label}  \nKonfiden: {probs[pred]*100:.1f}%")
                         c1, c2 = st.columns(2)
                         c1.metric("P(Konsisten)",   f"{probs[0]*100:.1f}%")
                         c2.metric("P(Inkonsisten)", f"{probs[1]*100:.1f}%")
                         st.progress(float(probs[1]), text=f"Prob. Inkonsisten: {probs[1]*100:.1f}%")
+                        with st.expander("Logic Flow — cara model memutuskan"):
+                            render_logic_flow(text_input, rating_input, pred, probs, "TFIDF LR")
                         st.markdown("---")
 
                 if use_cnn:
@@ -698,21 +783,23 @@ elif PAGE == "🤖 Demo Prediksi":
                         st.info("**TextCNN** — model belum tersedia. Jalankan `skenario2_model_comparison.ipynb` terlebih dahulu.")
                     else:
                         pred, probs = predict_cnn(text_input, rating_input, cnn_m, cnn_ckpt)
-                        label = "❌ INKONSISTEN" if pred == 1 else "✅ KONSISTEN"
+                        label = "INKONSISTEN" if pred == 1 else "KONSISTEN"
                         fn = st.error if pred == 1 else st.success
                         fn(f"**TextCNN:** {label}  \nKonfiden: {probs[pred]*100:.1f}%")
                         c1, c2 = st.columns(2)
                         c1.metric("P(Konsisten)",   f"{probs[0]*100:.1f}%")
                         c2.metric("P(Inkonsisten)", f"{probs[1]*100:.1f}%")
                         st.progress(float(probs[1]), text=f"Prob. Inkonsisten: {probs[1]*100:.1f}%")
+                        with st.expander("Logic Flow — cara model memutuskan"):
+                            render_logic_flow(text_input, rating_input, pred, probs, "TextCNN")
 
     st.markdown("---")
-    with st.expander("💡 Contoh kasus untuk dicoba"):
+    with st.expander("Contoh kasus untuk dicoba"):
         st.markdown("""
         | Rating | Teks | Ekspektasi |
         |---|---|---|
-        | ⭐ (1) | "Aplikasi sangat bagus dan membantu sekali, fiturnya lengkap dan tidak ada lag sama sekali!" | **Inkonsisten** (rating 1, teks positif) |
-        | ⭐⭐⭐⭐⭐ (5) | "Aplikasi sangat mengecewakan, sering error dan data saya hilang. Sangat tidak rekomendasikan!" | **Inkonsisten** (rating 5, teks negatif) |
-        | ⭐ (1) | "Tidak bisa dibuka sama sekali, sudah coba uninstall berkali-kali tapi tetap error terus." | **Konsisten** (rating 1, teks negatif) |
-        | ⭐⭐⭐⭐⭐ (5) | "Sangat puas dengan layanannya, pengiriman cepat dan barang sesuai deskripsi. Recommended!" | **Konsisten** (rating 5, teks positif) |
+        | 1★ | "Aplikasi sangat bagus dan membantu sekali, fiturnya lengkap dan tidak ada lag sama sekali!" | Inkonsisten (rating rendah, teks positif) |
+        | 5★ | "Aplikasi sangat mengecewakan, sering error dan data saya hilang. Sangat tidak rekomendasikan!" | Inkonsisten (rating tinggi, teks negatif) |
+        | 1★ | "Tidak bisa dibuka sama sekali, sudah coba uninstall berkali-kali tapi tetap error terus." | Konsisten (rating rendah, teks negatif) |
+        | 5★ | "Sangat puas dengan layanannya, pengiriman cepat dan barang sesuai deskripsi. Recommended!" | Konsisten (rating tinggi, teks positif) |
         """)
